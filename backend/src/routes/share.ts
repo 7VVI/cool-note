@@ -43,14 +43,14 @@ router.get('/:code', optionalAuth, (req: AuthRequest, res: Response, next) => {
       });
     }
 
-    // 如果是密码保护模式，返回需要验证的提示
-    if (doc.share_mode === 'password') {
+    // 如果是秘钥保护模式，返回需要验证的提示
+    if (doc.share_mode === 'secret') {
       return res.json({
         success: true,
         data: {
           id: doc.id,
           title: doc.title,
-          shareMode: 'password',
+          shareMode: 'secret',
           needPassword: true,
           isOwner: false
         }
@@ -100,7 +100,7 @@ router.post('/:code/verify', optionalAuth, (req: AuthRequest, res: Response, nex
       throw new NotFoundError('Document not found or not shared');
     }
 
-    if (doc.share_mode !== 'password') {
+    if (doc.share_mode !== 'secret') {
       throw new AppError('This document does not require a password');
     }
 

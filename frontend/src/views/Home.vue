@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, computed } from 'vue'
+import { onMounted, onUnmounted, ref, watch, computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useDocumentStore } from '@/stores/document'
-import { useUiStore } from '@/stores/ui'
+import { useUiStore, mdThemes, type MdThemeId } from '@/stores/ui'
 import Sidebar from '@/components/Sidebar.vue'
 import Editor from '@/components/Editor.vue'
 import TabBar from '@/components/TabBar.vue'
@@ -185,15 +185,45 @@ const currentDate = computed(() => {
   return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`
 })
 
+// MD 主题切换
+function handleMdThemeChange(themeId: MdThemeId) {
+  uiStore.applyMdTheme(themeId)
+  uiStore.closeMdThemePanel()
+  const theme = mdThemes.find(t => t.id === themeId)
+  if (theme) {
+    uiStore.showToast(`文档主题切换为「${theme.name}」`)
+  }
+}
+
+// 点击外部关闭 MD 主题面板
+function handleClickOutside(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (uiStore.mdThemePanelOpen && !target.closest('.md-theme-panel') && !target.closest('.toolbar-btn[title="文档主题"]')) {
+    uiStore.closeMdThemePanel()
+  }
+}
+
 onMounted(async () => {
+  // 初始化主题
+  uiStore.initThemes()
+
+  // 添加点击外部关闭面板的事件监听
+  document.addEventListener('click', handleClickOutside)
+
   if (userStore.isLoggedIn) {
     await docStore.loadAll()
+    // 从URL恢复文档选中状态
+    docStore.restoreFromUrl()
   }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
 <template>
-  <div class="h-screen flex overflow-hidden" style="background: #faf9f7;">
+  <div class="h-screen flex overflow-hidden" style="background: var(--ed-bg);">
     <!-- 侧边栏 -->
     <Sidebar
       :open="userStore.isLoggedIn"
@@ -201,7 +231,7 @@ onMounted(async () => {
       :active-id="docStore.activeDocId"
       :blocks="[]"
       :auto-rename-id="autoRenameId"
-      :active-doc-content="docStore.activeDoc?.content || ''"
+      :active-doc-content="(docStore.activeDoc as any)?._htmlContent || docStore.activeDoc?.content || ''"
       @toggle-sidebar="() => {}"
       @select="docStore.selectDoc"
       @create-folder="handleCreateFolder"
@@ -232,7 +262,7 @@ onMounted(async () => {
       <div
         v-if="userStore.isLoggedIn && docStore.activeDoc"
         class="h-[40px] flex items-center px-5 gap-[2px]"
-        style="background: #ffffff; border-bottom: 1px solid #e8e6e2;"
+        style="background: var(--chrome-bg); border-bottom: 1px solid var(--chrome-border);"
       >
         <!-- 左侧工具按钮 -->
         <button class="toolbar-btn" title="加粗">
@@ -295,7 +325,7 @@ onMounted(async () => {
         </button>
 
         <!-- 右侧区域 -->
-        <div class="ml-auto flex items-center gap-[4px]">
+        <div class="ml-auto flex items-center gap-[4px] relative">
           <!-- 分享状态标签 -->
           <span
             v-if="shareBadge"
@@ -304,6 +334,59 @@ onMounted(async () => {
           >
             {{ shareBadge.text }}
           </span>
+
+          <!-- MD主题按钮 -->
+          <div class="relative">
+            <button
+              @click="uiStore.toggleMdThemePanel"
+              class="toolbar-btn"
+              title="文档主题"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"/>
+                <circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"/>
+                <circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"/>
+                <circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"/>
+                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"/>
+              </svg>
+            </button>
+            <!-- MD主题面板 -->
+            <div v-if="uiStore.mdThemePanelOpen" class="md-theme-panel show">
+              <div class="mtp-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="13.5" cy="6.5" r="0.5" fill="currentColor"/>
+                  <circle cx="17.5" cy="10.5" r="0.5" fill="currentColor"/>
+                  <circle cx="8.5" cy="7.5" r="0.5" fill="currentColor"/>
+                  <circle cx="6.5" cy="12.5" r="0.5" fill="currentColor"/>
+                  <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.555C21.965 6.012 17.461 2 12 2z"/>
+                </svg>
+                文档主题
+              </div>
+              <div class="mtp-grid">
+                <div
+                  v-for="theme in mdThemes"
+                  :key="theme.id"
+                  class="mtp-card"
+                  :class="{ active: uiStore.mdTheme === theme.id }"
+                  @click="handleMdThemeChange(theme.id)"
+                >
+                  <div class="mtp-check">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </div>
+                  <div class="mtp-preview" :style="{ background: theme.bg }">
+                    <div class="mtp-preview-h1" :style="{ background: theme.h1 }"></div>
+                    <div class="mtp-preview-h2" :style="{ background: theme.h2 }"></div>
+                    <div class="mtp-preview-text" :style="{ background: theme.text }"></div>
+                    <div class="mtp-preview-text2" :style="{ background: theme.text }"></div>
+                    <div class="mtp-preview-quote" :style="{ background: theme.qb }"></div>
+                  </div>
+                  <div class="mtp-label">{{ theme.name }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <!-- 分享按钮 -->
           <button
@@ -341,7 +424,15 @@ onMounted(async () => {
         <Editor
           v-if="docStore.activeDoc"
           :doc="docStore.activeDoc"
-          @update="(content) => docStore.updateDocContent(docStore.activeDoc!.id, content)"
+          @update="(content) => {
+            // 立即更新store中的content用于大纲显示（保存HTML用于实时预览）
+            const doc = docStore.documents.find(d => d.id === docStore.activeDocId)
+            if (doc) {
+              // 临时存储HTML用于大纲解析，但不覆盖Markdown内容
+              ;(doc as any)._htmlContent = content
+            }
+          }"
+          @save="(content) => docStore.updateDocContent(docStore.activeDoc!.id, content)"
         />
 
         <!-- 无文档时显示空状态 -->
@@ -437,6 +528,23 @@ onMounted(async () => {
         <div class="status-item">
           <span>Markdown</span>
         </div>
+        <!-- 系统主题切换 -->
+        <button class="sys-toggle" @click="uiStore.toggleSysTheme" title="切换主题">
+          <svg v-if="uiStore.sysDark" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" x2="12" y1="1" y2="3"/>
+            <line x1="12" x2="12" y1="21" y2="23"/>
+            <line x1="4.22" x2="5.64" y1="4.22" y2="5.64"/>
+            <line x1="18.36" x2="19.78" y1="18.36" y2="19.78"/>
+            <line x1="1" x2="3" y1="12" y2="12"/>
+            <line x1="21" x2="23" y1="12" y2="12"/>
+            <line x1="4.22" x2="5.64" y1="19.78" y2="18.36"/>
+            <line x1="18.36" x2="19.78" y1="5.64" y2="4.22"/>
+          </svg>
+        </button>
       </div>
     </div>
 

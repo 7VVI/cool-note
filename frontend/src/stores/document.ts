@@ -87,8 +87,22 @@ export const useDocumentStore = defineStore('document', () => {
   }
 
   // 选择文档
-  async function selectDoc(id: string) {
+  async function selectDoc(id: string | null) {
     activeDocId.value = id
+
+    // 更新URL参数
+    if (id) {
+      const url = new URL(window.location.href)
+      url.searchParams.set('doc', id)
+      window.history.replaceState({}, '', url.toString())
+    } else {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('doc')
+      window.history.replaceState({}, '', url.toString())
+    }
+
+    // 如果 id 为空，不进行后续操作
+    if (!id) return
 
     // 添加到标签页
     if (!openTabs.value.includes(id)) {
@@ -109,6 +123,15 @@ export const useDocumentStore = defineStore('document', () => {
       } catch (err) {
         console.error('Failed to load document:', err)
       }
+    }
+  }
+
+  // 从URL恢复文档选中状态
+  function restoreFromUrl() {
+    const url = new URL(window.location.href)
+    const docId = url.searchParams.get('doc')
+    if (docId && documents.value.find(d => d.id === docId)) {
+      selectDoc(docId)
     }
   }
 
@@ -304,6 +327,7 @@ export const useDocumentStore = defineStore('document', () => {
     updateShareSettings,
     updateFolder,
     deleteNode,
-    moveNode
+    moveNode,
+    restoreFromUrl
   }
 })

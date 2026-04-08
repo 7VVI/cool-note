@@ -202,14 +202,14 @@ onUnmounted(() => {
 
       <!-- 图标 -->
       <span class="item-icon">
-        <!-- 文件夹图标 -->
-        <svg v-if="isFolder" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>
+        <!-- 文件夹图标 - 黄色填充 -->
+        <svg v-if="isFolder" width="15" height="15" viewBox="0 0 24 24" fill="#fbbf24" stroke="#f59e0b" stroke-width="1.5">
+          <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
         </svg>
-        <!-- 文档图标 -->
-        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
-          <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+        <!-- 文档图标 - 实心书本 -->
+        <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="#e8e0d0" stroke="#bf8a5e" stroke-width="1.5">
+          <path d="M4 19.5A2.5 2.5 0 0 1 1.5 17V5A2.5 2.5 0 0 1 4 2.5h4a4 4 0 0 1 3 1.35A4 4 0 0 1 14 2.5h4A2.5 2.5 0 0 1 20.5 5v12a2.5 2.5 0 0 1-2.5 2.5h-4a4 4 0 0 0-3-1.35 4 4 0 0 0-3 1.35H4z"/>
+          <path d="M12 3.5v16" stroke-width="1" stroke="#d4c4b0"/>
         </svg>
       </span>
 
@@ -403,6 +403,7 @@ onUnmounted(() => {
 
 .nav-item .item-label {
   font-size: 13px;
+  font-weight: 500;
   color: #a0a0a8;
   white-space: nowrap;
   overflow: hidden;
@@ -412,6 +413,7 @@ onUnmounted(() => {
 
 .nav-item.active .item-label {
   color: #e0e0e2;
+  font-weight: 600;
 }
 
 .nav-item .item-count {

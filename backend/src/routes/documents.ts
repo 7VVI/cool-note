@@ -218,7 +218,7 @@ router.put('/:id', (req: AuthRequest, res: Response, next) => {
         [
           shareSettings.enabled ? 1 : 0,
           shareSettings.mode || 'private',
-          shareSettings.mode === 'password' ? shareSettings.password || '' : '',
+          shareSettings.mode === 'secret' ? shareSettings.password || '' : '',
           shareSettings.enabled ? shareCode : null,
           now,
           id

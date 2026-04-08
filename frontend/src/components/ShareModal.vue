@@ -42,6 +42,11 @@ const docName = computed(() => props.doc?.title || '无标题文档')
 
 // 保存分享设置
 function handleSave() {
+  // 如果是秘钥访问模式且密码为空，自动生成
+  if (shareMode.value === 'secret' && !password.value) {
+    generateSecret()
+  }
+
   const settings = {
     enabled: shareOn.value,
     mode: shareMode.value,

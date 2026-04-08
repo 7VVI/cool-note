@@ -44,6 +44,7 @@ const activeOutlineId = ref<string | null>(null)
 // 知识库相关状态
 const currentKbId = ref<string | null>(null)
 const activeFolderId = ref<string | null>(null)
+const sidebarTab = ref<'files' | 'outline'>('files')
 const kbColors = ['#5a7a6a', '#7a5a6a', '#6a6a5a', '#5a6a7a', '#7a6a5a', '#6a5a7a']
 const kbIcons = ['folder', 'bookmark', 'book-open', 'code', 'palette', 'lightbulb']
 
@@ -102,6 +103,8 @@ function countDocs(items: any[]): number {
 // 进入知识库
 function enterKb(kbId: string) {
   currentKbId.value = kbId
+  activeFolderId.value = null
+  sidebarTab.value = 'files'
   emit('kbChange', kbId)
 }
 
@@ -109,6 +112,7 @@ function enterKb(kbId: string) {
 function backToKbList() {
   currentKbId.value = null
   activeFolderId.value = null
+  sidebarTab.value = 'files'
   emit('kbChange', null)
 }
 
@@ -117,7 +121,7 @@ function handleCreateKb() {
   emit('createFolder', '新建知识库')
 }
 
-// 解析Markdown标题
+// 解析HTML标题生成大纲
 interface Heading {
   level: number
   text: string
@@ -127,18 +131,20 @@ interface Heading {
 const outline = computed<Heading[]>(() => {
   if (!props.activeDocContent) return []
   const headings: Heading[] = []
-  const lines = props.activeDocContent.split('\n')
-  let headingIndex = 0
-
-  for (const line of lines) {
-    const match = line.match(/^(#{1,6})\s+(.+)$/)
-    if (match) {
-      const level = match[1].length
-      const text = match[2].trim()
-      const id = `heading-${headingIndex++}`
-      headings.push({ level, text, id })
+  
+  // 使用 DOMParser 解析 HTML
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(props.activeDocContent, 'text/html')
+  const headingElements = doc.querySelectorAll('h1, h2, h3, h4, h5, h6')
+  
+  headingElements.forEach((el, index) => {
+    const level = parseInt(el.tagName.charAt(1))
+    const text = el.textContent?.trim() || ''
+    if (text) {
+      headings.push({ level, text, id: `heading-${index}` })
     }
-  }
+  })
+  
   return headings
 })
 
@@ -203,32 +209,66 @@ function handleExportDoc(node: any) { emit('exportDoc', node) }
 
 // 创建文件夹
 function handleCreateFolder() {
-  // 如果有选中的文件夹，创建在该文件夹下；否则创建在当前知识库根目录
-  const parentId = activeFolderId.value || currentKbId.value || null
+  let parentId: string | null = null
+
+  if (activeFolderId.value) {
+    // 如果选中了文件夹，创建在该文件夹下
+    parentId = activeFolderId.value
+  } else if (activeId.value) {
+    // 如果选中了文档，创建在该文档的父目录下
+    const activeDoc = props.nodes.find(n => n.id === activeId.value)
+    parentId = activeDoc?.parentId || currentKbId.value || null
+  } else {
+    // 否则创建在当前知识库根目录
+    parentId = currentKbId.value || null
+  }
+
   emit('createFolder', '新建文件夹', parentId)
 }
 
 // 处理文件夹选中
 function handleFolderSelect(folderId: string) {
   activeFolderId.value = folderId
+  // 不要清除文档选中状态，只是高亮文件夹
+  // emit('select', null)  // 注释掉这行，避免影响编辑器显示
+}
+
+// 处理文档选中
+function handleSelect(docId: string) {
+  activeFolderId.value = null  // 清除文件夹选中状态
+  emit('select', docId)
 }
 
 // 创建文档
-function handleCreateDoc() { emit('createDoc', '', '', currentKbId.value || null) }
+// 创建文档
+function handleCreateDoc() {
+  let parentId: string | null = null
+
+  if (activeFolderId.value) {
+    // 如果选中了文件夹，创建在该文件夹下
+    parentId = activeFolderId.value
+  } else if (activeId.value) {
+    // 如果选中了文档，创建在该文档的父目录下
+    const activeDoc = props.nodes.find(n => n.id === activeId.value)
+    parentId = activeDoc?.parentId || currentKbId.value || null
+  } else {
+    // 否则创建在当前知识库根目录
+    parentId = currentKbId.value || null
+  }
+
+  emit('createDoc', '', '', parentId)
+}
 
 // 点击大纲项
 function handleOutlineClick(heading: Heading) {
   activeOutlineId.value = heading.id
-  const vditorEl = document.querySelector('.vditor-wysiwyg')
-  if (vditorEl) {
-    const headings = vditorEl.querySelectorAll('h1, h2, h3, h4, h5, h6')
-    let currentIndex = 0
-    for (const h of headings) {
-      if (currentIndex === parseInt(heading.id.replace('heading-', ''))) {
-        h.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        break
-      }
-      currentIndex++
+  // 查找 TipTap 编辑器中的标题元素
+  const editorEl = document.querySelector('.prose-editor')
+  if (editorEl) {
+    const headings = editorEl.querySelectorAll('h1, h2, h3, h4, h5, h6')
+    const index = parseInt(heading.id.replace('heading-', ''))
+    if (headings[index]) {
+      headings[index].scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }
 }
@@ -309,8 +349,8 @@ onUnmounted(() => document.removeEventListener('click', handleClick))
             <div class="text-[11px] flex items-center gap-[6px]" style="color: #5c5c66;">
               <span class="flex items-center gap-[3px]">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
-                  <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
                 </svg>
                 {{ kb.docCount }} 篇
               </span>
@@ -365,8 +405,34 @@ onUnmounted(() => document.removeEventListener('click', handleClick))
       </div>
       <div class="h-px mx-[14px] mb-2" style="background: #2a2a30;"></div>
 
+      <!-- Tab切换 -->
+      <div class="flex mx-[14px] mb-2 border-b" style="border-color: #2a2a30;">
+        <div
+          class="flex-1 text-center py-2 text-xs font-semibold cursor-pointer transition-colors"
+          :style="{
+            color: sidebarTab === 'files' ? '#c4875a' : '#5c5c66',
+            borderBottom: sidebarTab === 'files' ? '2px solid #c4875a' : '2px solid transparent',
+            marginBottom: '-1px'
+          }"
+          @click="sidebarTab = 'files'"
+        >
+          目录
+        </div>
+        <div
+          class="flex-1 text-center py-2 text-xs font-semibold cursor-pointer transition-colors"
+          :style="{
+            color: sidebarTab === 'outline' ? '#c4875a' : '#5c5c66',
+            borderBottom: sidebarTab === 'outline' ? '2px solid #c4875a' : '2px solid transparent',
+            marginBottom: '-1px'
+          }"
+          @click="sidebarTab = 'outline'"
+        >
+          大纲
+        </div>
+      </div>
+
       <!-- 目录树 -->
-      <div class="flex-1 overflow-y-auto px-2 pb-2" style="scrollbar-width: thin; scrollbar-color: #2a2a30 transparent;">
+      <div v-if="sidebarTab === 'files'" class="flex-1 overflow-y-auto px-2 pb-2" style="scrollbar-width: thin; scrollbar-color: #2a2a30 transparent;">
         <div v-if="displayTree.length === 0" class="text-center py-9" style="color: #5c5c66;">
           <svg class="w-[26px] h-[26px] mb-2 opacity-30 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
@@ -384,7 +450,7 @@ onUnmounted(() => document.removeEventListener('click', handleClick))
           :drag-id="dragId"
           :drop-id="dropId"
           :auto-rename-id="autoRenameId"
-          @select="emit('select', $event)"
+          @select="handleSelect"
           @toggle="emit('toggle', $event)"
           @rename="emit('rename', $event.id, $event.name)"
           @rename-done="emit('renameDone')"
@@ -398,6 +464,28 @@ onUnmounted(() => document.removeEventListener('click', handleClick))
           @drag-leave="handleDragLeave"
           @folder-select="handleFolderSelect"
         />
+      </div>
+
+      <!-- 大纲 -->
+      <div v-else class="flex-1 overflow-y-auto px-2 pb-2" style="scrollbar-width: thin; scrollbar-color: #2a2a30 transparent;">
+        <div v-if="outline.length === 0" class="text-center py-9" style="color: #5c5c66;">
+          <svg class="w-[26px] h-[26px] mb-2 opacity-30 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 4v16"/><path d="M18 4v16"/><path d="M6 12h12"/>
+          </svg>
+          <p class="text-xs leading-relaxed">{{ activeId ? '当前文档暂无标题' : '请选择一个文档' }}</p>
+        </div>
+        <div v-else>
+          <div
+            v-for="heading in outline"
+            :key="heading.id"
+            class="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[13px] mb-0.5 cursor-pointer transition-colors"
+            :class="activeOutlineId === heading.id ? 'bg-[#2a2a30] text-[#c4875a]' : 'text-[#9e9ea6] hover:bg-[#252529]'"
+            :style="{ paddingLeft: (heading.level - 1) * 12 + 10 + 'px' }"
+            @click="handleOutlineClick(heading)"
+          >
+            {{ heading.text }}
+          </div>
+        </div>
       </div>
     </div>
 
